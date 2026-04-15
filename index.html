@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="uk">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Barrel Generator</title>
+  <title>Project TruckMarket Photo</title>
   <style>
     :root {
       --bg: #0b0d12;
@@ -20,31 +21,48 @@
       --err: #f87171;
       --warn: #fbbf24;
     }
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(255,193,7,.08), transparent 60%),
-        radial-gradient(900px 500px at 100% 0%, rgba(96,165,250,.06), transparent 60%),
+        radial-gradient(1200px 600px at 10% -10%, rgba(255, 193, 7, .08), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(96, 165, 250, .06), transparent 60%),
         var(--bg);
       color: var(--text);
       line-height: 1.5;
     }
+
     .container {
       max-width: 1200px;
       margin: 0 auto;
       padding: 40px 24px 80px;
     }
 
-    header { margin-bottom: 32px; }
+    header {
+      margin-bottom: 32px;
+    }
+
     h1 {
       margin: 0 0 6px;
       font-size: 30px;
       letter-spacing: -0.02em;
     }
-    .sub { margin: 0; color: var(--muted); font-size: 15px; }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
 
     /* ---- Dropzone ---- */
     .dropzone {
@@ -59,31 +77,37 @@
       transition: border-color .15s, background .15s, transform .15s;
       user-select: none;
     }
+
     .dropzone:hover {
       border-color: var(--accent);
       background: var(--surface-2);
     }
+
     .dropzone.drag {
       border-color: var(--accent);
       background: var(--surface-2);
       transform: scale(1.005);
     }
+
     .dropzone-title {
       display: block;
       font-size: 16px;
       font-weight: 600;
       color: var(--text);
     }
+
     .dropzone-title em {
       color: var(--accent);
       font-style: normal;
     }
+
     .dropzone-hint {
       display: block;
       margin-top: 8px;
       color: var(--muted);
       font-size: 13px;
     }
+
     .dropzone input[type=file] {
       position: absolute;
       inset: 0;
@@ -98,6 +122,7 @@
       flex-wrap: wrap;
       margin: 24px 0 16px;
     }
+
     button {
       font: inherit;
       background: var(--accent);
@@ -110,15 +135,29 @@
       cursor: pointer;
       transition: background .15s, transform .05s;
     }
-    button:hover:not(:disabled) { background: var(--accent-hover); }
-    button:active:not(:disabled) { transform: translateY(1px); }
-    button:disabled { opacity: .4; cursor: not-allowed; }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
     button.secondary {
       background: var(--surface-2);
       color: var(--text);
       border: 1px solid var(--border);
     }
-    button.secondary:hover:not(:disabled) { background: #262b38; }
+
+    button.secondary:hover:not(:disabled) {
+      background: #262b38;
+    }
 
     .stats {
       color: var(--muted);
@@ -139,10 +178,22 @@
       overflow-y: auto;
       margin-bottom: 24px;
     }
-    .log div { padding: 2px 0; }
-    .log .ok   { color: var(--ok); }
-    .log .err  { color: var(--err); }
-    .log .skip { color: var(--muted); }
+
+    .log div {
+      padding: 2px 0;
+    }
+
+    .log .ok {
+      color: var(--ok);
+    }
+
+    .log .err {
+      color: var(--err);
+    }
+
+    .log .skip {
+      color: var(--muted);
+    }
 
     /* ---- Results ---- */
     .results {
@@ -150,6 +201,7 @@
       grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
       gap: 16px;
     }
+
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -157,10 +209,12 @@
       overflow: hidden;
       transition: border-color .15s, transform .15s;
     }
+
     .card:hover {
       border-color: var(--accent);
       transform: translateY(-2px);
     }
+
     .card .thumb {
       aspect-ratio: 650 / 400;
       background: #fff;
@@ -169,12 +223,14 @@
       justify-content: center;
       overflow: hidden;
     }
+
     .card img {
       width: 100%;
       height: 100%;
       object-fit: contain;
       display: block;
     }
+
     .card .meta {
       padding: 10px 12px;
       display: flex;
@@ -183,6 +239,7 @@
       gap: 8px;
       border-top: 1px solid var(--border);
     }
+
     .card .name {
       font-size: 12px;
       color: var(--muted);
@@ -191,6 +248,7 @@
       white-space: nowrap;
       flex: 1;
     }
+
     .card a {
       color: var(--accent);
       text-decoration: none;
@@ -200,7 +258,10 @@
       border-radius: 6px;
       transition: background .15s;
     }
-    .card a:hover { background: rgba(255,193,7,.12); }
+
+    .card a:hover {
+      background: rgba(255, 193, 7, .12);
+    }
 
     /* ---- Empty state ---- */
     .empty {
@@ -213,16 +274,19 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <header>
       <h1>Barrel Generator</h1>
-      <p class="sub">Завантажте PNG-файли бочок — об'єм визначиться за останніми 3 цифрами коду, бочка ляже на відповідний шаблон.</p>
+      <p class="sub">Завантажте PNG-файли бочок — об'єм визначиться за останніми 3 цифрами коду, бочка ляже на
+        відповідний шаблон.</p>
     </header>
 
     <label class="dropzone" id="drop">
       <span class="dropzone-title">Перетягніть PNG сюди або <em>натисніть для вибору</em></span>
-      <span class="dropzone-hint">Назва файлу = код (напр. <code>270060.png</code>). Останні 3 цифри визначають об'єм.</span>
+      <span class="dropzone-hint">Назва файлу = код (напр. <code>270060.png</code>). Останні 3 цифри визначають
+        об'єм.</span>
       <input type="file" id="fileInput" accept="image/*" multiple />
     </label>
 
@@ -233,13 +297,16 @@
       <button id="toggleTuner" class="secondary">🎯 Налаштувати позиції</button>
     </div>
 
-    <div id="tuner" style="display:none; margin: 20px 0; padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;">
+    <div id="tuner"
+      style="display:none; margin: 20px 0; padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;">
       <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;">
         <label>Шаблон:
-          <select id="tunerTpl" style="padding: 8px; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;"></select>
+          <select id="tunerTpl"
+            style="padding: 8px; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;"></select>
         </label>
         <label>Тестова бочка:
-          <select id="tunerBarrel" style="padding: 8px; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;"></select>
+          <select id="tunerBarrel"
+            style="padding: 8px; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;"></select>
         </label>
         <button id="tunerExport" class="secondary">📋 Скопіювати конфіг</button>
         <button id="tunerReset" class="secondary">Скинути</button>
@@ -250,7 +317,8 @@
         </div>
         <div id="tunerControls" style="display: flex; flex-direction: column; gap: 12px;"></div>
       </div>
-      <small style="color: var(--muted); display:block; margin-top:12px;">Значення зберігаються в браузері (localStorage). Щоб поділитися — натисніть «Скопіювати конфіг» і замініть у config.js.</small>
+      <small style="color: var(--muted); display:block; margin-top:12px;">Значення зберігаються в браузері
+        (localStorage). Щоб поділитися — натисніть «Скопіювати конфіг» і замініть у config.js.</small>
     </div>
 
     <div class="stats" id="stats"></div>
@@ -264,4 +332,5 @@
   <script src="./config.js"></script>
   <script src="./app.js"></script>
 </body>
+
 </html>
