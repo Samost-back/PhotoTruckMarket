@@ -4,22 +4,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Project TruckMarket Photo</title>
+  <title>PhotoTruckMarket</title>
+
   <style>
     :root {
-      --bg: #0b0d12;
-      --bg-2: #11141b;
-      --surface: #181c26;
-      --surface-2: #1f2430;
-      --border: #2a2f3d;
-      --text: #eef1f6;
-      --muted: #8b93a5;
+      --bg: #0a0c10;
+      --bg-2: #0f131a;
+      --surface: rgba(255, 255, 255, 0.04);
+      --surface-2: rgba(255, 255, 255, 0.07);
+      --border: rgba(255, 255, 255, 0.10);
+
+      --text: #e9eef7;
+      --muted: #9aa3b2;
+
       --accent: #ffc107;
-      --accent-hover: #ffd042;
+      --accent-hover: #ffd24d;
       --accent-ink: #1a1300;
+
       --ok: #4ade80;
       --err: #f87171;
-      --warn: #fbbf24;
     }
 
     * {
@@ -33,67 +36,70 @@
 
     body {
       margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(255, 193, 7, .08), transparent 60%),
-        radial-gradient(900px 500px at 100% 0%, rgba(96, 165, 250, .06), transparent 60%),
-        var(--bg);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
       color: var(--text);
       line-height: 1.5;
+      background:
+        radial-gradient(1000px 600px at 10% -10%, rgba(255, 193, 7, 0.10), transparent 60%),
+        radial-gradient(900px 500px at 100% 0%, rgba(59, 130, 246, 0.08), transparent 60%),
+        linear-gradient(180deg, var(--bg), var(--bg-2));
     }
 
     .container {
       max-width: 1200px;
       margin: 0 auto;
-      padding: 40px 24px 80px;
+      padding: 42px 22px 90px;
     }
 
     header {
-      margin-bottom: 32px;
+      margin-bottom: 28px;
     }
 
     h1 {
       margin: 0 0 6px;
-      font-size: 30px;
-      letter-spacing: -0.02em;
+      font-size: 34px;
+      letter-spacing: -0.03em;
     }
 
     .sub {
       margin: 0;
       color: var(--muted);
-      font-size: 15px;
+      font-size: 14px;
     }
 
-    /* ---- Dropzone ---- */
+    /* DROPZONE */
     .dropzone {
       display: block;
       position: relative;
-      border: 2px dashed var(--border);
-      border-radius: 14px;
-      padding: 56px 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 54px 22px;
       text-align: center;
       cursor: pointer;
+
       background: var(--surface);
-      transition: border-color .15s, background .15s, transform .15s;
+      backdrop-filter: blur(10px);
+
+      transition: 0.2s ease;
       user-select: none;
     }
 
     .dropzone:hover {
-      border-color: var(--accent);
+      transform: translateY(-1px);
+      border-color: rgba(255, 193, 7, 0.5);
       background: var(--surface-2);
     }
 
     .dropzone.drag {
       border-color: var(--accent);
       background: var(--surface-2);
-      transform: scale(1.005);
+      transform: scale(1.01);
     }
 
     .dropzone-title {
       display: block;
       font-size: 16px;
       font-weight: 600;
-      color: var(--text);
     }
 
     .dropzone-title em {
@@ -104,8 +110,8 @@
     .dropzone-hint {
       display: block;
       margin-top: 8px;
-      color: var(--muted);
       font-size: 13px;
+      color: var(--muted);
     }
 
     .dropzone input[type=file] {
@@ -115,29 +121,46 @@
       cursor: pointer;
     }
 
-    /* ---- Actions ---- */
+    /* ACTIONS */
     .actions {
       display: flex;
-      gap: 10px;
       flex-wrap: wrap;
-      margin: 24px 0 16px;
+      gap: 10px;
+      margin: 20px 0 14px;
     }
 
     button {
       font: inherit;
-      background: var(--accent);
-      color: var(--accent-ink);
-      border: 0;
-      padding: 11px 22px;
+      border: 1px solid transparent;
+      padding: 10px 16px;
       border-radius: 10px;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: background .15s, transform .05s;
+
+      transition: 0.15s ease;
     }
 
-    button:hover:not(:disabled) {
+    button:not(.secondary) {
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+
+    button:not(.secondary):hover:not(:disabled) {
       background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    button.secondary {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      backdrop-filter: blur(8px);
+    }
+
+    button.secondary:hover:not(:disabled) {
+      background: var(--surface-2);
+      border-color: rgba(255, 255, 255, 0.18);
     }
 
     button:active:not(:disabled) {
@@ -145,38 +168,31 @@
     }
 
     button:disabled {
-      opacity: .4;
+      opacity: 0.45;
       cursor: not-allowed;
     }
 
-    button.secondary {
-      background: var(--surface-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-    }
-
-    button.secondary:hover:not(:disabled) {
-      background: #262b38;
-    }
-
+    /* STATS */
     .stats {
       color: var(--muted);
-      font-size: 14px;
-      margin-bottom: 12px;
-      min-height: 20px;
+      font-size: 13px;
+      margin-bottom: 10px;
+      min-height: 18px;
     }
 
-    /* ---- Log ---- */
+    /* LOG */
     .log {
-      background: var(--bg-2);
+      background: rgba(0, 0, 0, 0.25);
       border: 1px solid var(--border);
-      border-radius: 10px;
+      border-radius: 12px;
       padding: 12px 14px;
-      font-family: ui-monospace, 'Cascadia Code', Consolas, Monaco, monospace;
-      font-size: 12.5px;
+
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
+      font-size: 12px;
+
       max-height: 220px;
       overflow-y: auto;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
 
     .log div {
@@ -195,24 +211,26 @@
       color: var(--muted);
     }
 
-    /* ---- Results ---- */
+    /* RESULTS */
     .results {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-      gap: 16px;
+      gap: 14px;
     }
 
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 14px;
       overflow: hidden;
-      transition: border-color .15s, transform .15s;
+
+      transition: 0.2s ease;
+      backdrop-filter: blur(10px);
     }
 
     .card:hover {
-      border-color: var(--accent);
-      transform: translateY(-2px);
+      transform: translateY(-3px);
+      border-color: rgba(255, 193, 7, 0.5);
     }
 
     .card .thumb {
@@ -221,22 +239,19 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
     }
 
     .card img {
       width: 100%;
       height: 100%;
       object-fit: contain;
-      display: block;
     }
 
     .card .meta {
-      padding: 10px 12px;
       display: flex;
       justify-content: space-between;
-      align-items: center;
       gap: 8px;
+      padding: 10px 12px;
       border-top: 1px solid var(--border);
     }
 
@@ -246,86 +261,102 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      flex: 1;
     }
 
     .card a {
+      font-size: 12px;
       color: var(--accent);
       text-decoration: none;
-      font-size: 12px;
-      font-weight: 600;
       padding: 4px 8px;
       border-radius: 6px;
-      transition: background .15s;
+      transition: 0.15s ease;
     }
 
     .card a:hover {
-      background: rgba(255, 193, 7, .12);
+      background: rgba(255, 193, 7, 0.12);
     }
 
-    /* ---- Empty state ---- */
+    /* EMPTY */
     .empty {
-      color: var(--muted);
-      text-align: center;
-      padding: 40px 20px;
-      font-size: 14px;
       border: 1px dashed var(--border);
-      border-radius: 10px;
+      border-radius: 12px;
+      padding: 36px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* TUNER */
+    #tuner {
+      margin: 20px 0;
+      padding: 18px;
+      border-radius: 14px;
+
+      background: var(--surface);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+    }
+
+    #tuner select {
+      padding: 7px 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+      color: var(--text);
+    }
+
+    #tuner canvas {
+      width: 100%;
+      display: block;
+      border-radius: 8px;
     }
   </style>
 </head>
 
 <body>
   <div class="container">
+
     <header>
-      <h1>Barrel Generator</h1>
-      <p class="sub">Завантажте PNG-файли бочок — об'єм визначиться за останніми 3 цифрами коду, бочка ляже на
-        відповідний шаблон.</p>
+      <h1>PhotoTruckMarket</h1>
+      <p class="sub">Завантаження PNG → автоматичне визначення конфігурації по коду файлу.</p>
     </header>
 
     <label class="dropzone" id="drop">
-      <span class="dropzone-title">Перетягніть PNG сюди або <em>натисніть для вибору</em></span>
-      <span class="dropzone-hint">Назва файлу = код (напр. <code>270060.png</code>). Останні 3 цифри визначають
-        об'єм.</span>
+      <span class="dropzone-title">Перетягніть PNG сюди або <em>оберіть файл</em></span>
+      <span class="dropzone-hint">Наприклад: <code>270060.png</code> (останні 3 цифри = об’єм)</span>
       <input type="file" id="fileInput" accept="image/*" multiple />
     </label>
 
     <div class="actions">
       <button id="generate" disabled>Згенерувати</button>
-      <button id="downloadZip" class="secondary" disabled>Завантажити ZIP</button>
+      <button id="downloadZip" class="secondary" disabled>ZIP</button>
       <button id="clear" class="secondary">Очистити</button>
-      <button id="toggleTuner" class="secondary">🎯 Налаштувати позиції</button>
+      <button id="toggleTuner" class="secondary">Налаштування</button>
     </div>
 
-    <div id="tuner"
-      style="display:none; margin: 20px 0; padding: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;">
-      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;">
-        <label>Шаблон:
-          <select id="tunerTpl"
-            style="padding: 8px; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;"></select>
-        </label>
-        <label>Тестова бочка:
-          <select id="tunerBarrel"
-            style="padding: 8px; background: var(--bg-2); color: var(--text); border: 1px solid var(--border); border-radius: 6px;"></select>
-        </label>
-        <button id="tunerExport" class="secondary">📋 Скопіювати конфіг</button>
-        <button id="tunerReset" class="secondary">Скинути</button>
+    <div id="tuner" style="display:none;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <select id="tunerTpl"></select>
+        <select id="tunerBarrel"></select>
+        <button id="tunerExport" class="secondary">Копіювати</button>
+        <button id="tunerReset" class="secondary">Reset</button>
       </div>
-      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
-        <div style="background:#fff; border-radius: 8px; overflow: hidden;">
-          <canvas id="tunerCanvas" style="width: 100%; display: block;"></canvas>
+
+      <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px;">
+        <div style="background:#fff; border-radius:10px; overflow:hidden;">
+          <canvas id="tunerCanvas"></canvas>
         </div>
-        <div id="tunerControls" style="display: flex; flex-direction: column; gap: 12px;"></div>
+        <div id="tunerControls"></div>
       </div>
-      <small style="color: var(--muted); display:block; margin-top:12px;">Значення зберігаються в браузері
-        (localStorage). Щоб поділитися — натисніть «Скопіювати конфіг» і замініть у config.js.</small>
     </div>
 
     <div class="stats" id="stats"></div>
     <div class="log" id="log" style="display:none;"></div>
+
     <div class="results" id="results">
-      <div class="empty" id="empty">Ще нічого не згенеровано</div>
+      <div class="empty" id="empty">Немає згенерованих елементів</div>
     </div>
+
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
