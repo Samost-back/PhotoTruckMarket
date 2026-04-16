@@ -1,21 +1,16 @@
 (() => {
   const CFG = window.BARREL_CONFIG;
   const TEMPLATES_DIR = 'templates';
-  const LS_KEY = 'barrel_positions_v1';
-
-  try {
-    const saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
-    for (const [k, v] of Object.entries(saved)) {
-      if (CFG.TEMPLATES[k]) Object.assign(CFG.TEMPLATES[k], v);
-    }
-  } catch (_) {}
 
   const $ = (id) => document.getElementById(id);
   const drop = $('drop');
   const fileInput = $('fileInput');
   const btnGenerate = $('generate');
-  const btnZip = $('downloadZip');
+  const btnDownloadAll = $('downloadAll');
   const btnClear = $('clear');
+  const btnToggleLog = $('toggleLog');
+  const logOverlay = $('logOverlay');
+  const btnCloseLog = $('closeLog');
   const logEl = $('log');
   const statsEl = $('stats');
   const resultsEl = $('results');
@@ -91,6 +86,10 @@
     const ctx = canvas.getContext('2d');
     ctx.drawImage(templateImg, 0, 0);
 
+    // Cover the product area with white before placing new image
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(pos.left, pos.top, pos.width, pos.height);
+
     const bw = barrelImg.naturalWidth;
     const bh = barrelImg.naturalHeight;
     const scale = Math.min(pos.width / bw, pos.height / bh);
@@ -106,12 +105,10 @@
   }
 
   function log(msg, cls = '') {
-    logEl.style.display = 'block';
     const div = document.createElement('div');
     if (cls) div.className = cls;
     div.textContent = msg;
     logEl.appendChild(div);
-    logEl.scrollTop = logEl.scrollHeight;
   }
 
   function clearResults() {
@@ -119,9 +116,10 @@
     generated = [];
     resultsEl.innerHTML = '<div class="empty">Ще нічого не згенеровано</div>';
     logEl.innerHTML = '';
-    logEl.style.display = 'none';
+    logOverlay.classList.remove('open');
     statsEl.textContent = '';
-    btnZip.disabled = true;
+    btnDownloadAll.disabled = true;
+    btnToggleLog.disabled = true;
   }
 
   function renderCard(item) {
@@ -130,23 +128,34 @@
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
-      <div class="thumb"><img src="${item.url}" alt="${item.name}" /></div>
+      <div class="thumb"><img src="${item.url}" alt="${item.outName}" /></div>
       <div class="meta">
-        <span class="name" title="${item.name}">${item.name}</span>
-        <a href="${item.url}" download="${item.name}">Скачати</a>
+        <span class="name" title="${item.folderPath}">${item.outName}</span>
+        <a href="${item.url}" download="${item.outName}">Скачати</a>
       </div>
     `;
     resultsEl.appendChild(card);
   }
 
+  /** Extract relative folder path from webkitRelativePath */
+  function getFolderPath(file) {
+    const rel = file.webkitRelativePath || file.name;
+    const parts = rel.split('/');
+    if (parts.length <= 1) return '';
+    // remove root folder name and filename, keep middle dirs
+    return parts.slice(1, -1).join('/');
+  }
+
   function setBarrelFiles(files) {
     barrelFiles = Array.from(files).filter((f) => {
-      if (f.type && f.type.startsWith('image/')) return true;
       return /\.(png|jpe?g|webp)$/i.test(f.name);
     });
     btnGenerate.disabled = barrelFiles.length === 0;
+    const folderName = barrelFiles.length && barrelFiles[0].webkitRelativePath
+      ? barrelFiles[0].webkitRelativePath.split('/')[0]
+      : '';
     statsEl.textContent = barrelFiles.length
-      ? `Вибрано файлів: ${barrelFiles.length}`
+      ? `Папка: ${folderName || '—'} | Файлів: ${barrelFiles.length}`
       : '';
   }
 
@@ -164,9 +173,89 @@
       drop.classList.remove('drag');
     })
   );
-  drop.addEventListener('drop', (e) => {
-    if (e.dataTransfer?.files) setBarrelFiles(e.dataTransfer.files);
+
+  drop.addEventListener('drop', async (e) => {
+    const items = e.dataTransfer?.items;
+    if (!items) return;
+
+    const allFiles = [];
+    const entries = [];
+    for (const item of items) {
+      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+      if (entry) entries.push(entry);
+    }
+
+    if (entries.length > 0 && entries.some((e) => e.isDirectory)) {
+      for (const entry of entries) {
+        await readEntryRecursive(entry, '', allFiles);
+      }
+      barrelFiles = allFiles.filter((f) => /\.(png|jpe?g|webp)$/i.test(f.name));
+      btnGenerate.disabled = barrelFiles.length === 0;
+      const folderName = entries[0].name || '—';
+      statsEl.textContent = barrelFiles.length
+        ? `Папка: ${folderName} | Файлів: ${barrelFiles.length}`
+        : '';
+    } else if (e.dataTransfer?.files) {
+      setBarrelFiles(e.dataTransfer.files);
+    }
   });
+
+  function readAllEntries(reader) {
+    return new Promise((resolve) => {
+      const all = [];
+      (function readBatch() {
+        reader.readEntries((batch) => {
+          if (batch.length === 0) {
+            resolve(all);
+          } else {
+            all.push(...batch);
+            readBatch();
+          }
+        });
+      })();
+    });
+  }
+
+  async function readEntryRecursive(entry, path, result) {
+    if (entry.isFile) {
+      return new Promise((resolve) => {
+        entry.file((file) => {
+          Object.defineProperty(file, '_relativePath', {
+            value: path ? path + '/' + file.name : file.name,
+            writable: false,
+          });
+          result.push(file);
+          resolve();
+        });
+      });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const entries = await readAllEntries(reader);
+      for (const child of entries) {
+        await readEntryRecursive(
+          child,
+          path ? path + '/' + entry.name : entry.name,
+          result
+        );
+      }
+    }
+  }
+
+  /** Get the subfolder path for a file (from folder upload or drag&drop) */
+  function getSubfolder(file) {
+    // drag&drop folder: _relativePath stored manually
+    if (file._relativePath) {
+      const parts = file._relativePath.split('/');
+      return parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+    }
+    // webkitdirectory input: webkitRelativePath = "rootFolder/sub/file.png"
+    if (file.webkitRelativePath) {
+      const parts = file.webkitRelativePath.split('/');
+      // skip root folder name, take middle parts
+      return parts.length > 2 ? parts.slice(1, -1).join('/') : '';
+    }
+    return '';
+  }
 
   btnClear.addEventListener('click', () => {
     setBarrelFiles([]);
@@ -211,19 +300,22 @@
         continue;
       }
 
+      const subfolder = getSubfolder(file);
+
       for (const tplName of tplNames) {
         if (!templates[tplName]) {
           failed++;
           continue;
         }
         const outName = `${tplName}_${code}.jpg`;
+        const folderPath = subfolder ? `${subfolder}/${outName}` : outName;
         try {
           const blob = await compose(templates[tplName], barrelImg, CFG.TEMPLATES[tplName]);
           const url = URL.createObjectURL(blob);
-          const item = { name: outName, blob, url };
+          const item = { outName, folderPath, subfolder, blob, url };
           generated.push(item);
           renderCard(item);
-          log(`[ok]  ${outName}`, 'ok');
+          log(`[ok]  ${folderPath}`, 'ok');
           ok++;
         } catch (err) {
           log(`[err] ${outName}: ${err.message}`, 'err');
@@ -234,186 +326,56 @@
 
     statsEl.textContent = `Готово. ok=${ok} skipped=${skipped} failed=${failed}`;
     btnGenerate.disabled = barrelFiles.length === 0;
-    btnZip.disabled = generated.length === 0;
+    btnDownloadAll.disabled = generated.length === 0;
+    btnToggleLog.disabled = false;
   });
 
-  btnZip.addEventListener('click', async () => {
+  btnDownloadAll.addEventListener('click', async () => {
     if (generated.length === 0) return;
-    btnZip.disabled = true;
-    const zip = new JSZip();
-    for (const g of generated) zip.file(g.name, g.blob);
-    const blob = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `barrels_${Date.now()}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-    btnZip.disabled = false;
-  });
+    btnDownloadAll.disabled = true;
+    btnDownloadAll.textContent = 'Зберігаю...';
 
-  const tunerBtn = $('toggleTuner');
-  const tuner = $('tuner');
-  const tplSel = $('tunerTpl');
-  const barrelSel = $('tunerBarrel');
-  const controlsEl = $('tunerControls');
-  const canvas = $('tunerCanvas');
-  const btnExport = $('tunerExport');
-  const btnReset = $('tunerReset');
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
 
-  function savePositions() {
-    const snap = {};
-    for (const [k, v] of Object.entries(CFG.TEMPLATES)) {
-      snap[k] = { left: v.left, top: v.top, width: v.width, height: v.height };
-    }
-    localStorage.setItem(LS_KEY, JSON.stringify(snap));
-  }
+      for (const g of generated) {
+        let targetDir = dirHandle;
 
-  function populateTplSel() {
-    tplSel.innerHTML = '';
-    for (const name of Object.keys(CFG.TEMPLATES)) {
-      const opt = document.createElement('option');
-      opt.value = name;
-      opt.textContent = `${name} (${CFG.TEMPLATES[name].value})`;
-      tplSel.appendChild(opt);
-    }
-  }
+        // Create subfolders if needed
+        if (g.subfolder) {
+          const parts = g.subfolder.split('/');
+          for (const part of parts) {
+            targetDir = await targetDir.getDirectoryHandle(part, { create: true });
+          }
+        }
 
-  function populateBarrelSel() {
-    barrelSel.innerHTML = '';
-    if (barrelFiles.length === 0) {
-      const opt = document.createElement('option');
-      opt.textContent = '— завантажте PNG вище —';
-      opt.disabled = true;
-      barrelSel.appendChild(opt);
-      return;
-    }
-    barrelFiles.forEach((f, i) => {
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = f.name;
-      barrelSel.appendChild(opt);
-    });
-  }
+        const fileHandle = await targetDir.getFileHandle(g.outName, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(g.blob);
+        await writable.close();
+      }
 
-  async function renderTuner() {
-    const tplName = tplSel.value;
-    if (!tplName) return;
-    const pos = CFG.TEMPLATES[tplName];
-    const tpls = await loadTemplates();
-    const tplImg = tpls[tplName];
-    if (!tplImg) return;
-
-    canvas.width = tplImg.naturalWidth;
-    canvas.height = tplImg.naturalHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(tplImg, 0, 0);
-
-    if (barrelFiles.length && barrelSel.value !== '') {
-      const idx = Number(barrelSel.value);
-      const file = barrelFiles[idx];
-      if (file) {
-        try {
-          const b = await fileToImage(file);
-          const scale = Math.min(pos.width / b.naturalWidth, pos.height / b.naturalHeight);
-          const w = b.naturalWidth * scale;
-          const h = b.naturalHeight * scale;
-          const x = pos.left + (pos.width - w) / 2;
-          const y = pos.top + (pos.height - h) / 2;
-          ctx.drawImage(b, x, y, w, h);
-        } catch (_) {}
+      statsEl.textContent = `Збережено ${generated.length} файлів у папку`;
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        statsEl.textContent = `Помилка збереження: ${err.message}`;
       }
     }
 
-    ctx.strokeStyle = 'rgba(255,0,0,0.8)';
-    ctx.setLineDash([6, 4]);
-    ctx.lineWidth = 2;
-    ctx.strokeRect(pos.left, pos.top, pos.width, pos.height);
-    ctx.setLineDash([]);
-  }
-
-  function buildControls() {
-    const tplName = tplSel.value;
-    if (!tplName) return;
-    const pos = CFG.TEMPLATES[tplName];
-    controlsEl.innerHTML = '';
-    const fields = [
-      { key: 'left',   min: 0, max: 1000 },
-      { key: 'top',    min: 0, max: 1000 },
-      { key: 'width',  min: 10, max: 1000 },
-      { key: 'height', min: 10, max: 1000 },
-    ];
-    fields.forEach(({ key, min, max }) => {
-      const wrap = document.createElement('div');
-      wrap.innerHTML = `
-        <div style="display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px;">
-          <span>${key}</span>
-          <span id="v_${key}" style="color:var(--accent); font-weight:600;">${pos[key]}</span>
-        </div>
-        <input type="range" id="r_${key}" min="${min}" max="${max}" value="${pos[key]}" style="width:100%;" />
-        <input type="number" id="n_${key}" min="${min}" max="${max}" value="${pos[key]}" style="width:100%; margin-top:4px; padding:6px; background:var(--bg-2); color:var(--text); border:1px solid var(--border); border-radius:6px;" />
-      `;
-      controlsEl.appendChild(wrap);
-      const range = wrap.querySelector(`#r_${key}`);
-      const num = wrap.querySelector(`#n_${key}`);
-      const vLabel = wrap.querySelector(`#v_${key}`);
-      const onChange = (val) => {
-        const n = Number(val);
-        if (!Number.isFinite(n)) return;
-        pos[key] = n;
-        range.value = n;
-        num.value = n;
-        vLabel.textContent = n;
-        savePositions();
-        renderTuner();
-      };
-      range.addEventListener('input', (e) => onChange(e.target.value));
-      num.addEventListener('input', (e) => onChange(e.target.value));
-    });
-  }
-
-  tunerBtn.addEventListener('click', () => {
-    const visible = tuner.style.display !== 'none';
-    tuner.style.display = visible ? 'none' : 'block';
-    if (!visible) {
-      populateTplSel();
-      populateBarrelSel();
-      buildControls();
-      renderTuner();
-    }
+    btnDownloadAll.textContent = 'Скачати все';
+    btnDownloadAll.disabled = false;
   });
 
-  tplSel.addEventListener('change', () => { buildControls(); renderTuner(); });
-  barrelSel.addEventListener('change', renderTuner);
-
-  btnExport.addEventListener('click', () => {
-    const lines = Object.entries(CFG.TEMPLATES).map(([name, c]) => {
-      const key = /^[a-z_][a-z0-9_]*$/i.test(name) ? name : `'${name}'`;
-      return `    ${key}: { unit: '${c.unit}', value: '${c.value}', left: ${c.left}, top: ${c.top}, width: ${c.width}, height: ${c.height} },`;
-    });
-    const snippet = `TEMPLATES: {\n${lines.join('\n')}\n  },`;
-    navigator.clipboard.writeText(snippet).then(
-      () => alert('Конфіг скопійовано в буфер. Вставте в config.js → BARREL_CONFIG.TEMPLATES'),
-      () => {
-        prompt('Скопіюйте вручну:', snippet);
-      }
-    );
+  btnToggleLog.addEventListener('click', () => {
+    logOverlay.classList.add('open');
   });
 
-  btnReset.addEventListener('click', () => {
-    if (!confirm('Скинути всі позиції до значень із config.js?')) return;
-    localStorage.removeItem(LS_KEY);
-    location.reload();
+  btnCloseLog.addEventListener('click', () => {
+    logOverlay.classList.remove('open');
   });
 
-  window.addEventListener('barrels-updated', () => {
-    if (tuner.style.display !== 'none') {
-      populateBarrelSel();
-      renderTuner();
-    }
+  logOverlay.addEventListener('click', (e) => {
+    if (e.target === logOverlay) logOverlay.classList.remove('open');
   });
-  fileInput.addEventListener('change', () => window.dispatchEvent(new Event('barrels-updated')));
-  drop.addEventListener('drop', () => setTimeout(() => window.dispatchEvent(new Event('barrels-updated')), 0));
+
 })();

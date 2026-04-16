@@ -181,18 +181,49 @@
     }
 
     /* LOG */
-    .log {
-      background: rgba(0, 0, 0, 0.25);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 14px;
+    .log-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      justify-content: center;
+      align-items: center;
+    }
 
+    .log-overlay.open {
+      display: flex;
+    }
+
+    .log-panel {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 700px;
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .log-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .log {
+      padding: 12px 14px;
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas;
       font-size: 12px;
-
-      max-height: 220px;
       overflow-y: auto;
-      margin-bottom: 20px;
+      flex: 1;
     }
 
     .log div {
@@ -216,6 +247,28 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
       gap: 14px;
+      max-height: 520px;
+      overflow-y: auto;
+      padding-right: 6px;
+      border-radius: 14px;
+    }
+
+    .results::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .results::-webkit-scrollbar-track {
+      background: var(--surface);
+      border-radius: 6px;
+    }
+
+    .results::-webkit-scrollbar-thumb {
+      background: rgba(255, 193, 7, 0.35);
+      border-radius: 6px;
+    }
+
+    .results::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 193, 7, 0.6);
     }
 
     .card {
@@ -286,30 +339,6 @@
       font-size: 13px;
     }
 
-    /* TUNER */
-    #tuner {
-      margin: 20px 0;
-      padding: 18px;
-      border-radius: 14px;
-
-      background: var(--surface);
-      border: 1px solid var(--border);
-      backdrop-filter: blur(10px);
-    }
-
-    #tuner select {
-      padding: 7px 10px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--bg-2);
-      color: var(--text);
-    }
-
-    #tuner canvas {
-      width: 100%;
-      display: block;
-      border-radius: 8px;
-    }
   </style>
 </head>
 
@@ -322,17 +351,19 @@
     </header>
 
     <label class="dropzone" id="drop">
-      <span class="dropzone-title">Перетягніть PNG сюди або <em>оберіть файл</em></span>
-      <input type="file" id="fileInput" accept="image/*" multiple />
+      <span class="dropzone-title">Перетягніть папку сюди або <em>оберіть папку</em></span>
+      <span class="dropzone-hint">Папка з PNG файлами — структура збережеться</span>
+      <input type="file" id="fileInput" webkitdirectory directory />
     </label>
 
     <div class="actions">
       <button id="generate" disabled>Згенерувати</button>
-      <button id="downloadZip" class="secondary" disabled>ZIP</button>
+      <button id="downloadAll" class="secondary" disabled>Скачати все</button>
       <button id="clear" class="secondary">Очистити</button>
-      <button id="toggleTuner" class="secondary">Налаштування</button>
+      <button id="toggleLog" class="secondary" disabled>Лог</button>
     </div>
 
+    <!-- DEV ONLY: tuner UI (uncomment button above to enable)
     <div id="tuner" style="display:none;">
       <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
         <select id="tunerTpl"></select>
@@ -340,7 +371,6 @@
         <button id="tunerExport" class="secondary">Копіювати</button>
         <button id="tunerReset" class="secondary">Reset</button>
       </div>
-
       <div style="display:grid; grid-template-columns: 2fr 1fr; gap:16px;">
         <div style="background:#fff; border-radius:10px; overflow:hidden;">
           <canvas id="tunerCanvas"></canvas>
@@ -348,9 +378,19 @@
         <div id="tunerControls"></div>
       </div>
     </div>
+    -->
 
     <div class="stats" id="stats"></div>
-    <div class="log" id="log" style="display:none;"></div>
+
+    <div class="log-overlay" id="logOverlay">
+      <div class="log-panel">
+        <div class="log-header">
+          <span>Лог обробки</span>
+          <button id="closeLog" class="secondary" style="padding:6px 12px;">Закрити</button>
+        </div>
+        <div class="log" id="log"></div>
+      </div>
+    </div>
 
     <div class="results" id="results">
       <div class="empty" id="empty">Немає згенерованих елементів</div>
@@ -358,7 +398,7 @@
 
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <!-- JSZip removed: folder download via individual files -->
   <script src="./config.js"></script>
   <script src="./app.js"></script>
 </body>
