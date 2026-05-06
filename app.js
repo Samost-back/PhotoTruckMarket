@@ -314,7 +314,7 @@
           failed++;
           continue;
         }
-        const outName = `${tplName}_${code}.jpg`;
+        const outName = `tm_${code}.jpg`;
         const folderPath = subfolder ? `${subfolder}/${outName}` : outName;
         try {
           const blob = await compose(templates[tplName], barrelImg, CFG.TEMPLATES[tplName]);
