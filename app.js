@@ -19,7 +19,15 @@
   let generated = [];
   let templateCache = null;
 
-  function resolveValue(last3) {
+  function resolveValue(code) {
+    const last3 = code.slice(-3);
+    if (
+      code.charAt(0) === '7' &&
+      CFG.KG_PREFIX7_MAP &&
+      Object.prototype.hasOwnProperty.call(CFG.KG_PREFIX7_MAP, last3)
+    ) {
+      return { unit: 'kg', value: CFG.KG_PREFIX7_MAP[last3] };
+    }
     if (Object.prototype.hasOwnProperty.call(CFG.KG_MAP, last3)) {
       return { unit: 'kg', value: CFG.KG_MAP[last3] };
     }
@@ -277,10 +285,9 @@
         skipped++;
         continue;
       }
-      const last3 = code.slice(-3);
-      const mapping = resolveValue(last3);
+      const mapping = resolveValue(code);
       if (!mapping) {
-        log(`[skip] ${file.name}: ${last3} немає у мапінгу`, 'skip');
+        log(`[skip] ${file.name}: ${code.slice(-3)} немає у мапінгу`, 'skip');
         skipped++;
         continue;
       }

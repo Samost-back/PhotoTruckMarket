@@ -7,13 +7,17 @@ const BARREL_CONFIG = {
     liters_20:    { unit: 'l', value: '20 л',  left: 170, top:  25, width: 340, height: 370 },
     liters_60:    { unit: 'l', value: '60 л',  left: 200, top:  25, width: 270, height: 360 },
     liters_208:   { unit: 'l', value: '208 л', left: 210, top:  25, width: 260, height: 350 },
+    liters_1000:  { unit: 'l', value: '1000 л',left: 170, top:  25, width: 340, height: 370 },
 
     'kg_0.4':     { unit: 'kg', value: '0.4 кг', left: 228, top:  24, width: 220, height: 340 },
     'kg_0.5':     { unit: 'kg', value: '0.5 кг', left: 209, top:  14, width: 240, height: 360 },
     'kg_0.6':     { unit: 'kg', value: '0.6 кг', left: 230, top:  40, width: 220, height: 340 },
     'kg_0.9':     { unit: 'kg', value: '0.9 кг', left: 222, top:  24, width: 220, height: 340 },
+    kg_5:         { unit: 'kg', value: '5 кг',   left: 190, top:  24, width: 310, height: 360 },
     kg_15:        { unit: 'kg', value: '15 кг',  left: 202, top:  25, width: 260, height: 340 },
     kg_25:        { unit: 'kg', value: '25 кг',  left: 170, top: -6, width: 340, height: 410 },
+    kg_50:        { unit: 'kg', value: '50 кг',  left: 200, top:  25, width: 270, height: 360 },
+    kg_180:       { unit: 'kg', value: '180 кг', left: 210, top:  35, width: 260, height: 350 },
   },
 
   KG_MAP: {
@@ -23,6 +27,7 @@ const BARREL_CONFIG = {
     '900': '0.9 кг',
     '015': '15 кг',
     '025': '25 кг',
+    '050': '50 кг',
   },
   LITERS_MAP: {
     '001': '1 л',
@@ -32,6 +37,14 @@ const BARREL_CONFIG = {
     '020': '20 л',
     '060': '60 л',
     '208': '208 л',
+    '100': '1000 л',
+  },
+
+  // Якщо артикул починається на '7', а останні 3 цифри є в цій мапі —
+  // вважаємо це кг (а не л з LITERS_MAP).
+  KG_PREFIX7_MAP: {
+    '005': '5 кг',
+    '180': '180 кг',
   },
 
   TEMPLATE_EXTS: ['png', 'jpg', 'jpeg'],
