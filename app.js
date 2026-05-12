@@ -3,8 +3,15 @@
   const TEMPLATES_DIR = 'templates';
 
   const $ = (id) => document.getElementById(id);
-  const drop = $('drop');
-  const fileInput = $('fileInput');
+  const tabAuto = $('tab-auto');
+  const tabManual = $('tab-manual');
+  const panelAuto = $('panel-auto');
+  const panelManual = $('panel-manual');
+  const dropAuto = $('drop-auto');
+  const dropManual = $('drop-manual');
+  const fileInputAuto = $('fileInputAuto');
+  const fileInputManual = $('fileInputManual');
+  const templateSelect = $('templateSelect');
   const btnGenerate = $('generate');
   const btnDownloadAll = $('downloadAll');
   const btnClear = $('clear');
@@ -15,9 +22,13 @@
   const statsEl = $('stats');
   const resultsEl = $('results');
 
+  let mode = 'auto';
   let barrelFiles = [];
   let generated = [];
   let templateCache = null;
+  let selectedTemplate = '';
+
+  // -------- core logic --------
 
   function resolveValue(code) {
     const last3 = code.slice(-3);
@@ -94,7 +105,6 @@
     const ctx = canvas.getContext('2d');
     ctx.drawImage(templateImg, 0, 0);
 
-    // Cover the product area with white before placing new image
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(pos.left, pos.top, pos.width, pos.height);
 
@@ -112,6 +122,8 @@
     );
   }
 
+  // -------- UI helpers --------
+
   function log(msg, cls = '') {
     const div = document.createElement('div');
     if (cls) div.className = cls;
@@ -119,10 +131,20 @@
     logEl.appendChild(div);
   }
 
+  const EMPTY_HTML = `
+    <div class="empty">
+      <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+        <circle cx="9" cy="9" r="2"></circle>
+        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"></path>
+      </svg>
+      Ще нічого не згенеровано
+    </div>`;
+
   function clearResults() {
     generated.forEach((g) => URL.revokeObjectURL(g.url));
     generated = [];
-    resultsEl.innerHTML = '<div class="empty">Ще нічого не згенеровано</div>';
+    resultsEl.innerHTML = EMPTY_HTML;
     logEl.innerHTML = '';
     logOverlay.classList.remove('open');
     statsEl.textContent = '';
@@ -145,80 +167,89 @@
     resultsEl.appendChild(card);
   }
 
-  /** Extract relative folder path from webkitRelativePath */
-  function getFolderPath(file) {
-    const rel = file.webkitRelativePath || file.name;
-    const parts = rel.split('/');
-    if (parts.length <= 1) return '';
-    // remove root folder name and filename, keep middle dirs
-    return parts.slice(1, -1).join('/');
+  function updateGenerateButton() {
+    if (mode === 'auto') {
+      btnGenerate.disabled = barrelFiles.length === 0;
+    } else {
+      btnGenerate.disabled = barrelFiles.length === 0 || !selectedTemplate;
+    }
+  }
+
+  function setStats() {
+    if (!barrelFiles.length) {
+      statsEl.textContent = '';
+      return;
+    }
+    if (mode === 'auto') {
+      const folderName = barrelFiles[0].webkitRelativePath
+        ? barrelFiles[0].webkitRelativePath.split('/')[0]
+        : barrelFiles[0]._relativePath
+        ? barrelFiles[0]._relativePath.split('/')[0]
+        : '';
+      statsEl.textContent = `Папка: ${folderName || '—'} | Файлів: ${barrelFiles.length}`;
+    } else {
+      const tplCfg = selectedTemplate ? CFG.TEMPLATES[selectedTemplate] : null;
+      const tplLabel = tplCfg ? tplCfg.value : '—';
+      statsEl.textContent = `Літраж: ${tplLabel} | Файлів: ${barrelFiles.length}`;
+    }
   }
 
   function setBarrelFiles(files) {
-    barrelFiles = Array.from(files).filter((f) => {
-      return /\.(png|jpe?g|webp)$/i.test(f.name);
-    });
-    btnGenerate.disabled = barrelFiles.length === 0;
-    const folderName = barrelFiles.length && barrelFiles[0].webkitRelativePath
-      ? barrelFiles[0].webkitRelativePath.split('/')[0]
-      : '';
-    statsEl.textContent = barrelFiles.length
-      ? `Папка: ${folderName || '—'} | Файлів: ${barrelFiles.length}`
-      : '';
+    barrelFiles = Array.from(files).filter((f) => /\.(png|jpe?g|webp)$/i.test(f.name));
+    updateGenerateButton();
+    setStats();
   }
 
-  fileInput.addEventListener('change', (e) => setBarrelFiles(e.target.files));
+  function populateTemplateSelect() {
+    const entries = Object.entries(CFG.TEMPLATES);
+    const liters = entries.filter(([, c]) => c.unit === 'l');
+    const kgs = entries.filter(([, c]) => c.unit === 'kg');
 
-  ['dragenter', 'dragover'].forEach((ev) =>
-    drop.addEventListener(ev, (e) => {
-      e.preventDefault();
-      drop.classList.add('drag');
-    })
-  );
-  ['dragleave', 'drop'].forEach((ev) =>
-    drop.addEventListener(ev, (e) => {
-      e.preventDefault();
-      drop.classList.remove('drag');
-    })
-  );
+    const byValue = (a, b) => parseFloat(a[1].value) - parseFloat(b[1].value);
+    liters.sort(byValue);
+    kgs.sort(byValue);
 
-  drop.addEventListener('drop', async (e) => {
-    const items = e.dataTransfer?.items;
-    if (!items) return;
+    templateSelect.innerHTML = '<option value="">— Оберіть —</option>';
 
-    const allFiles = [];
-    const entries = [];
-    for (const item of items) {
-      const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
-      if (entry) entries.push(entry);
-    }
-
-    if (entries.length > 0 && entries.some((e) => e.isDirectory)) {
-      for (const entry of entries) {
-        await readEntryRecursive(entry, '', allFiles);
+    const addGroup = (label, items) => {
+      if (!items.length) return;
+      const og = document.createElement('optgroup');
+      og.label = label;
+      for (const [name, c] of items) {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = c.value;
+        og.appendChild(opt);
       }
-      barrelFiles = allFiles.filter((f) => /\.(png|jpe?g|webp)$/i.test(f.name));
-      btnGenerate.disabled = barrelFiles.length === 0;
-      const folderName = entries[0].name || '—';
-      statsEl.textContent = barrelFiles.length
-        ? `Папка: ${folderName} | Файлів: ${barrelFiles.length}`
-        : '';
-    } else if (e.dataTransfer?.files) {
-      setBarrelFiles(e.dataTransfer.files);
-    }
-  });
+      templateSelect.appendChild(og);
+    };
+    addGroup('Літраж', liters);
+    addGroup('Вага', kgs);
+  }
+
+  function switchMode(newMode) {
+    if (mode === newMode) return;
+    mode = newMode;
+    tabAuto.classList.toggle('active', mode === 'auto');
+    tabManual.classList.toggle('active', mode === 'manual');
+    panelAuto.classList.toggle('active', mode === 'auto');
+    panelManual.classList.toggle('active', mode === 'manual');
+    barrelFiles = [];
+    fileInputAuto.value = '';
+    fileInputManual.value = '';
+    updateGenerateButton();
+    setStats();
+  }
+
+  // -------- folder / files reading --------
 
   function readAllEntries(reader) {
     return new Promise((resolve) => {
       const all = [];
       (function readBatch() {
         reader.readEntries((batch) => {
-          if (batch.length === 0) {
-            resolve(all);
-          } else {
-            all.push(...batch);
-            readBatch();
-          }
+          if (batch.length === 0) resolve(all);
+          else { all.push(...batch); readBatch(); }
         });
       })();
     });
@@ -249,27 +280,83 @@
     }
   }
 
-  /** Get the subfolder path for a file (from folder upload or drag&drop) */
   function getSubfolder(file) {
-    // drag&drop folder: _relativePath stored manually
     if (file._relativePath) {
       const parts = file._relativePath.split('/');
       return parts.length > 1 ? parts.slice(0, -1).join('/') : '';
     }
-    // webkitdirectory input: webkitRelativePath = "rootFolder/sub/file.png"
     if (file.webkitRelativePath) {
       const parts = file.webkitRelativePath.split('/');
-      // skip root folder name, take middle parts
       return parts.length > 2 ? parts.slice(1, -1).join('/') : '';
     }
     return '';
   }
 
+  // -------- dropzone wiring --------
+
+  function wireDropzone(dropEl, onFiles, { allowFolders }) {
+    ['dragenter', 'dragover'].forEach((ev) =>
+      dropEl.addEventListener(ev, (e) => { e.preventDefault(); dropEl.classList.add('drag'); })
+    );
+    ['dragleave', 'drop'].forEach((ev) =>
+      dropEl.addEventListener(ev, (e) => { e.preventDefault(); dropEl.classList.remove('drag'); })
+    );
+
+    dropEl.addEventListener('drop', async (e) => {
+      const items = e.dataTransfer?.items;
+      if (!items) {
+        if (e.dataTransfer?.files) onFiles(e.dataTransfer.files);
+        return;
+      }
+      const entries = [];
+      for (const item of items) {
+        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+        if (entry) entries.push(entry);
+      }
+      const hasDirs = entries.some((en) => en.isDirectory);
+      if (allowFolders && entries.length && hasDirs) {
+        const all = [];
+        for (const entry of entries) await readEntryRecursive(entry, '', all);
+        onFiles(all);
+      } else if (entries.length) {
+        // drop of multiple files (no folder) — collect file objects
+        const files = [];
+        for (const en of entries) {
+          if (en.isFile) {
+            await new Promise((res) => en.file((f) => { files.push(f); res(); }));
+          }
+        }
+        onFiles(files);
+      } else if (e.dataTransfer?.files) {
+        onFiles(e.dataTransfer.files);
+      }
+    });
+  }
+
+  wireDropzone(dropAuto, setBarrelFiles, { allowFolders: true });
+  wireDropzone(dropManual, setBarrelFiles, { allowFolders: false });
+
+  fileInputAuto.addEventListener('change', (e) => setBarrelFiles(e.target.files));
+  fileInputManual.addEventListener('change', (e) => setBarrelFiles(e.target.files));
+
+  templateSelect.addEventListener('change', (e) => {
+    selectedTemplate = e.target.value;
+    updateGenerateButton();
+    setStats();
+  });
+
+  tabAuto.addEventListener('click', () => switchMode('auto'));
+  tabManual.addEventListener('click', () => switchMode('manual'));
+
   btnClear.addEventListener('click', () => {
-    setBarrelFiles([]);
-    fileInput.value = '';
+    barrelFiles = [];
+    fileInputAuto.value = '';
+    fileInputManual.value = '';
+    updateGenerateButton();
     clearResults();
   });
+
+  // -------- generate --------
 
   btnGenerate.addEventListener('click', async () => {
     btnGenerate.disabled = true;
@@ -278,61 +365,86 @@
     const templates = await loadTemplates();
     let ok = 0, skipped = 0, failed = 0;
 
-    for (const file of barrelFiles) {
-      const code = file.name.replace(/\.[^.]+$/, '');
-      if (code.length < 3) {
-        log(`[skip] ${file.name}: код < 3 символів`, 'skip');
-        skipped++;
-        continue;
-      }
-      const mapping = resolveValue(code);
-      if (!mapping) {
-        log(`[skip] ${file.name}: ${code.slice(-3)} немає у мапінгу`, 'skip');
-        skipped++;
-        continue;
-      }
-      const tplNames = findTemplateNames(mapping);
-      if (tplNames.length === 0) {
-        log(`[skip] ${file.name}: немає шаблону для ${mapping.unit}=${mapping.value}`, 'skip');
-        skipped++;
-        continue;
-      }
-
-      let barrelImg;
-      try {
-        barrelImg = await fileToImage(file);
-      } catch (err) {
-        log(`[err] ${file.name}: ${err.message}`, 'err');
-        failed++;
-        continue;
-      }
-
-      const subfolder = getSubfolder(file);
-
-      for (const tplName of tplNames) {
-        if (!templates[tplName]) {
-          failed++;
-          continue;
+    if (mode === 'auto') {
+      for (const file of barrelFiles) {
+        const code = file.name.replace(/\.[^.]+$/, '');
+        if (code.length < 3) {
+          log(`[skip] ${file.name}: код < 3 символів`, 'skip');
+          skipped++; continue;
         }
-        const outName = `tm_${code}.jpg`;
-        const folderPath = subfolder ? `${subfolder}/${outName}` : outName;
+        const mapping = resolveValue(code);
+        if (!mapping) {
+          log(`[skip] ${file.name}: ${code.slice(-3)} немає у мапінгу`, 'skip');
+          skipped++; continue;
+        }
+        const tplNames = findTemplateNames(mapping);
+        if (tplNames.length === 0) {
+          log(`[skip] ${file.name}: немає шаблону для ${mapping.unit}=${mapping.value}`, 'skip');
+          skipped++; continue;
+        }
+
+        let barrelImg;
+        try { barrelImg = await fileToImage(file); }
+        catch (err) { log(`[err] ${file.name}: ${err.message}`, 'err'); failed++; continue; }
+
+        const subfolder = getSubfolder(file);
+        for (const tplName of tplNames) {
+          if (!templates[tplName]) { failed++; continue; }
+          const outName = `tm_${code}.jpg`;
+          const folderPath = subfolder ? `${subfolder}/${outName}` : outName;
+          try {
+            const blob = await compose(templates[tplName], barrelImg, CFG.TEMPLATES[tplName]);
+            const url = URL.createObjectURL(blob);
+            const item = { outName, folderPath, subfolder, blob, url };
+            generated.push(item);
+            renderCard(item);
+            log(`[ok]  ${folderPath}`, 'ok');
+            ok++;
+          } catch (err) {
+            log(`[err] ${outName}: ${err.message}`, 'err'); failed++;
+          }
+        }
+      }
+    } else {
+      // manual mode
+      const tplName = selectedTemplate;
+      const tplCfg = CFG.TEMPLATES[tplName];
+      if (!tplCfg) {
+        statsEl.textContent = 'Оберіть літраж';
+        btnGenerate.disabled = false;
+        return;
+      }
+      if (!templates[tplName]) {
+        log(`[err] немає шаблону ${tplName}`, 'err');
+        statsEl.textContent = `Шаблон ${tplName} не знайдено`;
+        btnGenerate.disabled = false;
+        return;
+      }
+
+      for (const file of barrelFiles) {
+        const baseName = file.name.replace(/\.[^.]+$/, '');
+        let barrelImg;
+        try { barrelImg = await fileToImage(file); }
+        catch (err) { log(`[err] ${file.name}: ${err.message}`, 'err'); failed++; continue; }
+
+        const outName = `tm_${baseName}.jpg`;
+        const folderPath = outName;
         try {
-          const blob = await compose(templates[tplName], barrelImg, CFG.TEMPLATES[tplName]);
+          const blob = await compose(templates[tplName], barrelImg, tplCfg);
           const url = URL.createObjectURL(blob);
-          const item = { outName, folderPath, subfolder, blob, url };
+          const item = { outName, folderPath, subfolder: '', blob, url };
           generated.push(item);
           renderCard(item);
-          log(`[ok]  ${folderPath}`, 'ok');
+          log(`[ok]  ${outName}`, 'ok');
           ok++;
         } catch (err) {
-          log(`[err] ${outName}: ${err.message}`, 'err');
-          failed++;
+          log(`[err] ${outName}: ${err.message}`, 'err'); failed++;
         }
       }
     }
 
     statsEl.textContent = `Готово. ok=${ok} skipped=${skipped} failed=${failed}`;
-    btnGenerate.disabled = barrelFiles.length === 0;
+    updateGenerateButton();
     btnDownloadAll.disabled = generated.length === 0;
     btnToggleLog.disabled = false;
   });
@@ -347,21 +459,17 @@
 
       for (const g of generated) {
         let targetDir = dirHandle;
-
-        // Create subfolders if needed
         if (g.subfolder) {
           const parts = g.subfolder.split('/');
           for (const part of parts) {
             targetDir = await targetDir.getDirectoryHandle(part, { create: true });
           }
         }
-
         const fileHandle = await targetDir.getFileHandle(g.outName, { create: true });
         const writable = await fileHandle.createWritable();
         await writable.write(g.blob);
         await writable.close();
       }
-
       statsEl.textContent = `Збережено ${generated.length} файлів у папку`;
     } catch (err) {
       if (err.name !== 'AbortError') {
@@ -373,16 +481,11 @@
     btnDownloadAll.disabled = false;
   });
 
-  btnToggleLog.addEventListener('click', () => {
-    logOverlay.classList.add('open');
-  });
-
-  btnCloseLog.addEventListener('click', () => {
-    logOverlay.classList.remove('open');
-  });
-
+  btnToggleLog.addEventListener('click', () => logOverlay.classList.add('open'));
+  btnCloseLog.addEventListener('click', () => logOverlay.classList.remove('open'));
   logOverlay.addEventListener('click', (e) => {
     if (e.target === logOverlay) logOverlay.classList.remove('open');
   });
 
+  populateTemplateSelect();
 })();
