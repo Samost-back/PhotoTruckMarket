@@ -12,6 +12,8 @@
   const fileInputAuto = $('fileInputAuto');
   const fileInputManual = $('fileInputManual');
   const templateSelect = $('templateSelect');
+  const countrySelectAuto = $('countrySelectAuto');
+  const countrySelectManual = $('countrySelectManual');
   const btnGenerate = $('generate');
   const btnDownloadAll = $('downloadAll');
   const btnClear = $('clear');
@@ -27,6 +29,8 @@
   let generated = [];
   let templateCache = null;
   let selectedTemplate = '';
+  let selectedCountryAuto = '';
+  let selectedCountryManual = '';
 
   // -------- core logic --------
 
@@ -98,7 +102,78 @@
     });
   }
 
-  async function compose(templateImg, barrelImg, pos) {
+  function processBarrelImage(img, threshold) {
+    const W = img.naturalWidth;
+    const H = img.naturalHeight;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const cctx = c.getContext('2d');
+    cctx.drawImage(img, 0, 0);
+    const data = cctx.getImageData(0, 0, W, H);
+    const px = data.data;
+
+    let minX = W, minY = H, maxX = -1, maxY = -1;
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        if (px[i] >= threshold && px[i + 1] >= threshold && px[i + 2] >= threshold) {
+          px[i + 3] = 0;
+        } else if (px[i + 3] > 10) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    cctx.putImageData(data, 0, 0);
+
+    if (maxX < 0) {
+      return { canvas: c, sx: 0, sy: 0, sw: W, sh: H };
+    }
+    const bw = maxX - minX + 1;
+    const bh = maxY - minY + 1;
+    const padding = (CFG.BG_REMOVAL && CFG.BG_REMOVAL.cropPadding) || 0;
+    const padX = Math.round(bw * padding);
+    const padY = Math.round(bh * padding);
+    const sx = Math.max(0, minX - padX);
+    const sy = Math.max(0, minY - padY);
+    const ex = Math.min(W, maxX + 1 + padX);
+    const ey = Math.min(H, maxY + 1 + padY);
+    return {
+      canvas: c,
+      sx,
+      sy,
+      sw: ex - sx,
+      sh: ey - sy,
+    };
+  }
+
+  function drawCountryText(ctx, country, bbox) {
+    if (!country || !bbox) return;
+    const cfg = CFG.COUNTRY_TEXT || {};
+    const color = cfg.color || '#ffffff';
+    const fontFamily = cfg.fontFamily || 'Inter, system-ui, sans-serif';
+    const fontWeight = cfg.fontWeight || 700;
+    const heightRatio = typeof cfg.heightRatio === 'number' ? cfg.heightRatio : 0.78;
+
+    // Фіксований розмір шрифту від bbox.height — не залежить від довжини назви країни.
+    // Текст лівої прив'язки: завжди стартує з bbox.left, тягнеться вправо.
+    const fontSize = Math.max(6, bbox.height * heightRatio);
+    ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+
+    ctx.fillStyle = color;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(
+      country,
+      bbox.left,
+      bbox.top + bbox.height / 2
+    );
+  }
+
+  async function compose(templateImg, barrelImg, pos, country) {
     const canvas = document.createElement('canvas');
     canvas.width = templateImg.naturalWidth;
     canvas.height = templateImg.naturalHeight;
@@ -108,14 +183,27 @@
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(pos.left, pos.top, pos.width, pos.height);
 
-    const bw = barrelImg.naturalWidth;
-    const bh = barrelImg.naturalHeight;
-    const scale = Math.min(pos.width / bw, pos.height / bh);
-    const w = bw * scale;
-    const h = bh * scale;
+    const bgr = CFG.BG_REMOVAL;
+    let source, sx, sy, sw, sh;
+    if (bgr && bgr.enabled) {
+      const r = processBarrelImage(barrelImg, bgr.whiteThreshold || 245);
+      source = r.canvas;
+      sx = r.sx; sy = r.sy; sw = r.sw; sh = r.sh;
+    } else {
+      source = barrelImg;
+      sx = 0; sy = 0;
+      sw = barrelImg.naturalWidth;
+      sh = barrelImg.naturalHeight;
+    }
+
+    const scale = Math.min(pos.width / sw, pos.height / sh);
+    const w = sw * scale;
+    const h = sh * scale;
     const x = pos.left + (pos.width - w) / 2;
     const y = pos.top + (pos.height - h) / 2;
-    ctx.drawImage(barrelImg, x, y, w, h);
+    ctx.drawImage(source, sx, sy, sw, sh, x, y, w, h);
+
+    drawCountryText(ctx, country, pos.country);
 
     return new Promise((resolve) =>
       canvas.toBlob((blob) => resolve(blob), 'image/jpeg', CFG.JPG_QUALITY)
@@ -167,11 +255,16 @@
     resultsEl.appendChild(card);
   }
 
+  function currentCountry() {
+    return mode === 'auto' ? selectedCountryAuto : selectedCountryManual;
+  }
+
   function updateGenerateButton() {
+    const country = currentCountry();
     if (mode === 'auto') {
-      btnGenerate.disabled = barrelFiles.length === 0;
+      btnGenerate.disabled = barrelFiles.length === 0 || !country;
     } else {
-      btnGenerate.disabled = barrelFiles.length === 0 || !selectedTemplate;
+      btnGenerate.disabled = barrelFiles.length === 0 || !selectedTemplate || !country;
     }
   }
 
@@ -180,17 +273,18 @@
       statsEl.textContent = '';
       return;
     }
+    const country = currentCountry() || '—';
     if (mode === 'auto') {
       const folderName = barrelFiles[0].webkitRelativePath
         ? barrelFiles[0].webkitRelativePath.split('/')[0]
         : barrelFiles[0]._relativePath
         ? barrelFiles[0]._relativePath.split('/')[0]
         : '';
-      statsEl.textContent = `Папка: ${folderName || '—'} | Файлів: ${barrelFiles.length}`;
+      statsEl.textContent = `Папка: ${folderName || '—'} | Країна: ${country} | Файлів: ${barrelFiles.length}`;
     } else {
       const tplCfg = selectedTemplate ? CFG.TEMPLATES[selectedTemplate] : null;
       const tplLabel = tplCfg ? tplCfg.value : '—';
-      statsEl.textContent = `Літраж: ${tplLabel} | Файлів: ${barrelFiles.length}`;
+      statsEl.textContent = `Літраж: ${tplLabel} | Країна: ${country} | Файлів: ${barrelFiles.length}`;
     }
   }
 
@@ -225,6 +319,20 @@
     };
     addGroup('Літраж', liters);
     addGroup('Вага', kgs);
+  }
+
+  function populateCountrySelects() {
+    const countries = CFG.COUNTRIES || [];
+    for (const sel of [countrySelectAuto, countrySelectManual]) {
+      if (!sel) continue;
+      sel.innerHTML = '<option value="">— Оберіть —</option>';
+      for (const c of countries) {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        sel.appendChild(opt);
+      }
+    }
   }
 
   function switchMode(newMode) {
@@ -345,6 +453,18 @@
     setStats();
   });
 
+  countrySelectAuto.addEventListener('change', (e) => {
+    selectedCountryAuto = e.target.value;
+    updateGenerateButton();
+    setStats();
+  });
+
+  countrySelectManual.addEventListener('change', (e) => {
+    selectedCountryManual = e.target.value;
+    updateGenerateButton();
+    setStats();
+  });
+
   tabAuto.addEventListener('click', () => switchMode('auto'));
   tabManual.addEventListener('click', () => switchMode('manual'));
 
@@ -362,6 +482,7 @@
     btnGenerate.disabled = true;
     clearResults();
 
+    const country = currentCountry();
     const templates = await loadTemplates();
     let ok = 0, skipped = 0, failed = 0;
 
@@ -393,7 +514,7 @@
           const outName = `tm_${code}.jpg`;
           const folderPath = subfolder ? `${subfolder}/${outName}` : outName;
           try {
-            const blob = await compose(templates[tplName], barrelImg, CFG.TEMPLATES[tplName]);
+            const blob = await compose(templates[tplName], barrelImg, CFG.TEMPLATES[tplName], country);
             const url = URL.createObjectURL(blob);
             const item = { outName, folderPath, subfolder, blob, url };
             generated.push(item);
@@ -430,7 +551,7 @@
         const outName = `tm_${baseName}.jpg`;
         const folderPath = outName;
         try {
-          const blob = await compose(templates[tplName], barrelImg, tplCfg);
+          const blob = await compose(templates[tplName], barrelImg, tplCfg, country);
           const url = URL.createObjectURL(blob);
           const item = { outName, folderPath, subfolder: '', blob, url };
           generated.push(item);
@@ -488,4 +609,5 @@
   });
 
   populateTemplateSelect();
+  populateCountrySelects();
 })();
